@@ -1,0 +1,493 @@
+]<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Downhill Ski Game</title>
+
+  <!-- Link to your CSS file -->
+  <link rel="stylesheet" href="../Style/style3.css"
+</head>
+
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">
+        <div class="dot"></div>
+        <div>
+          <h1>Downhill Ski Run</h1>
+          <p>Steer, pass gates, avoid obstacles. Press <b>R</b> to restart.</p>
+        </div>
+      </div>
+
+      <nav class="navlinks">
+        <!-- Change href to your actual professional page path if needed -->
+        <a href="Professionalpage.html">Back to Resume</a>
+      </nav>
+    </header>
+
+    <main class="grid">
+      <!-- Game panel -->
+      <section class="card gameCard">
+        <canvas id="c"></canvas>
+
+        <div class="hud">
+          <div class="pill">
+            <span class="label">Score</span>
+            <span class="value" id="score">0</span>
+          </div>
+          <div class="pill">
+            <span class="label">Speed</span>
+            <span class="value" id="speed">0</span>
+          </div>
+          <div class="pill">
+            <span class="label">Best</span>
+            <span class="value" id="best">0</span>
+          </div>
+          <div class="pill status">
+            <span class="label">Status</span>
+            <span class="value" id="status">Ready</span>
+          </div>
+        </div>
+
+        <div class="overlay" id="overlay">
+          <h2>Click Start</h2>
+          <p>
+            <span class="kbd">←</span><span class="kbd">→</span> or
+            <span class="kbd">A</span><span class="kbd">D</span> steer •
+            <span class="kbd">Space</span> boost •
+            <span class="kbd">R</span> restart
+          </p>
+        </div>
+      </section>
+
+      <!-- Info / controls panel -->
+      <aside class="card sideCard">
+        <h2>Controls</h2>
+
+        <ul class="controls">
+          <li><span class="kbd">←</span> <span class="kbd">→</span> or <span class="kbd">A</span> <span class="kbd">D</span> — steer</li>
+          <li><span class="kbd">Space</span> — boost (short burst)</li>
+          <li><span class="kbd">R</span> — restart</li>
+        </ul>
+
+        <div class="btnRow">
+          <button class="btn primary" id="startBtn">Start</button>
+          <button class="btn" id="pauseBtn">Pause</button>
+          <button class="btn" id="restartBtn">Restart</button>
+        </div>
+
+        <div class="rules">
+          <h3>Scoring</h3>
+          <ul>
+            <li>Pass a gate: <b>+10</b></li>
+            <li>Near-miss obstacle: <b>+2</b></li>
+            <li>Hit obstacle: <b>Game Over</b></li>
+          </ul>
+        </div>
+
+        <p class="tip">Tip: Stay centered and boost on straightaways.</p>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById("c");
+      const ctx = canvas.getContext("2d");
+
+      const ui = {
+        score: document.getElementById("score"),
+        speed: document.getElementById("speed"),
+        best: document.getElementById("best"),
+        status: document.getElementById("status"),
+        overlay: document.getElementById("overlay"),
+        startBtn: document.getElementById("startBtn"),
+        pauseBtn: document.getElementById("pauseBtn"),
+        restartBtn: document.getElementById("restartBtn"),
+      };
+
+      function fitCanvas() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+        canvas.width = Math.floor(rect.width * dpr);
+        canvas.height = Math.floor(rect.height * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      window.addEventListener("resize", fitCanvas);
+      fitCanvas();
+
+      let running = false;
+      let paused = false;
+      let gameOver = false;
+
+      let tPrev = performance.now();
+      let score = 0;
+      let best = Number(localStorage.getItem("ski_best") || 0);
+      ui.best.textContent = String(best);
+
+      const keys = new Set();
+      let boosting = false;
+
+      window.addEventListener("keydown", (e) => {
+        if (["ArrowLeft","ArrowRight","Space","KeyA","KeyD","KeyR"].includes(e.code)) e.preventDefault();
+        keys.add(e.code);
+        if (e.code === "Space") boosting = true;
+        if (e.code === "KeyR") restart();
+        if (!running && (e.code === "Space" || e.code === "Enter")) start();
+        ui.overlay.classList.add("hide");
+      }, { passive:false });
+
+      window.addEventListener("keyup", (e) => {
+        keys.delete(e.code);
+        if (e.code === "Space") boosting = false;
+      });
+
+      let scroll = 0;
+
+      const skier = { x: 0, y: 0, vx: 0, w: 26, h: 40 };
+      let baseSpeed = 260;
+      let speed = baseSpeed;
+      let boostMeter = 1.0;
+
+      const obstacles = [];
+      const gates = [];
+
+      function trackWidth(viewW) {
+        return Math.max(320, viewW * 0.68);
+      }
+
+      function resetPositions() {
+        const w = canvas.getBoundingClientRect().width;
+        const h = canvas.getBoundingClientRect().height;
+        skier.x = w / 2;
+        skier.y = h * 0.72;
+        skier.vx = 0;
+        scroll = 0;
+        obstacles.length = 0;
+        gates.length = 0;
+        score = 0;
+        baseSpeed = 260;
+        speed = baseSpeed;
+        boosting = false;
+        boostMeter = 1.0;
+        gameOver = false;
+        ui.status.textContent = "Ready";
+        ui.score.textContent = "0";
+      }
+
+      resetPositions();
+
+      function rand(a,b){ return a + Math.random()*(b-a); }
+      function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+      function spawnObstacle() {
+        const w = canvas.getBoundingClientRect().width;
+        const tw = trackWidth(w);
+        const left = (w - tw) / 2 + 30;
+        const right = (w + tw) / 2 - 30;
+
+        const type = Math.random() < 0.65 ? "tree" : "rock";
+        const r = type === "tree" ? rand(16, 22) : rand(12, 18);
+
+        obstacles.push({ x: rand(left, right), y: -60, r, type, nearMissed: false });
+      }
+
+      function spawnGate() {
+        const w = canvas.getBoundingClientRect().width;
+        const tw = trackWidth(w);
+        const center = w / 2;
+        const gateW = rand(120, 170);
+        const x = rand(center - tw*0.22, center + tw*0.22);
+        gates.push({ x, y: -80, w: gateW, passed: false });
+      }
+
+      let obstacleTimer = 0;
+      let gateTimer = 0;
+
+      function start() {
+        if (gameOver) restart();
+        running = true;
+        paused = false;
+        ui.overlay.classList.add("hide");
+        ui.status.textContent = "Skiing";
+        tPrev = performance.now();
+        requestAnimationFrame(loop);
+      }
+
+      function togglePause() {
+        if (!running) return;
+        paused = !paused;
+        ui.status.textContent = paused ? "Paused" : "Skiing";
+        if (!paused) {
+          tPrev = performance.now();
+          requestAnimationFrame(loop);
+        }
+      }
+
+      function endGame() {
+        gameOver = true;
+        running = false;
+        ui.status.textContent = "Crashed";
+        ui.overlay.classList.remove("hide");
+        ui.overlay.querySelector("h2").textContent = "Game Over";
+        ui.overlay.querySelector("p").innerHTML =
+          `Final score: <b>${Math.floor(score)}</b><br/>Press <span class="kbd">R</span> or click Restart.`;
+
+        best = Math.max(best, Math.floor(score));
+        localStorage.setItem("ski_best", String(best));
+        ui.best.textContent = String(best);
+      }
+
+      function restart() {
+        ui.overlay.querySelector("h2").textContent = "Click Start";
+        ui.overlay.querySelector("p").innerHTML =
+          `<span class="kbd">←</span><span class="kbd">→</span> or
+           <span class="kbd">A</span><span class="kbd">D</span> steer •
+           <span class="kbd">Space</span> boost •
+           <span class="kbd">R</span> restart`;
+        resetPositions();
+        running = true;
+        paused = false;
+        ui.status.textContent = "Skiing";
+        ui.overlay.classList.add("hide");
+        tPrev = performance.now();
+        requestAnimationFrame(loop);
+      }
+
+      ui.startBtn.addEventListener("click", start);
+      ui.pauseBtn.addEventListener("click", togglePause);
+      ui.restartBtn.addEventListener("click", restart);
+      canvas.addEventListener("pointerdown", () => {
+        ui.overlay.classList.add("hide");
+        if (!running) start();
+      });
+
+      function rectCircleHit(rx, ry, rw, rh, cx, cy, cr) {
+        const nx = clamp(cx, rx, rx + rw);
+        const ny = clamp(cy, ry, ry + rh);
+        const dx = cx - nx;
+        const dy = cy - ny;
+        return (dx*dx + dy*dy) <= cr*cr;
+      }
+
+      function update(dt) {
+        const w = canvas.getBoundingClientRect().width;
+        const h = canvas.getBoundingClientRect().height;
+
+        const tw = trackWidth(w);
+        const left = (w - tw) / 2;
+        const right = (w + tw) / 2;
+
+        baseSpeed += dt * 2.2;
+
+        const boostGain = 240;
+        if (boosting && boostMeter > 0) {
+          speed = baseSpeed + boostGain;
+          boostMeter = Math.max(0, boostMeter - dt * 0.55);
+        } else {
+          speed = baseSpeed;
+          boostMeter = Math.min(1, boostMeter + dt * 0.22);
+        }
+
+        const steer = (keys.has("ArrowLeft") || keys.has("KeyA") ? -1 : 0) +
+                      (keys.has("ArrowRight") || keys.has("KeyD") ? 1 : 0);
+
+        skier.vx += steer * 1150 * dt;
+        skier.vx *= Math.pow(0.05, dt);
+        skier.x += skier.vx * dt;
+
+        const margin = 26;
+        skier.x = clamp(skier.x, left + margin, right - margin);
+
+        obstacleTimer += dt;
+        gateTimer += dt;
+
+        const obstacleInterval = clamp(1.05 - (baseSpeed-260)/600, 0.45, 1.05);
+        const gateInterval = 1.25;
+
+        if (obstacleTimer > obstacleInterval) { obstacleTimer = 0; spawnObstacle(); }
+        if (gateTimer > gateInterval) { gateTimer = 0; spawnGate(); }
+
+        const worldDy = speed * dt;
+        scroll += worldDy;
+
+        for (const o of obstacles) o.y += worldDy;
+        for (const g of gates) g.y += worldDy;
+
+        while (obstacles.length && obstacles[0].y > h + 80) obstacles.shift();
+        while (gates.length && gates[0].y > h + 120) gates.shift();
+
+        for (const g of gates) {
+          if (!g.passed && g.y > skier.y + 10) {
+            const half = g.w / 2;
+            const within = skier.x > (g.x - half) && skier.x < (g.x + half);
+            if (within) score += 10;
+            g.passed = true;
+          }
+        }
+
+        const skierRect = { x: skier.x - skier.w/2, y: skier.y - skier.h/2, w: skier.w, h: skier.h };
+
+        for (const o of obstacles) {
+          const dx = o.x - skier.x;
+          const dy = o.y - skier.y;
+          const dist = Math.hypot(dx, dy);
+
+          const near = dist < o.r + 42;
+          const hit = rectCircleHit(skierRect.x, skierRect.y, skierRect.w, skierRect.h, o.x, o.y, o.r);
+
+          if (hit) { endGame(); return; }
+          if (near && !o.nearMissed) { o.nearMissed = true; score += 2; }
+        }
+
+        score += dt * (1.2 + (baseSpeed - 260) / 260);
+
+        ui.score.textContent = String(Math.floor(score));
+        ui.speed.textContent = String(Math.floor(speed));
+      }
+
+      function draw() {
+        const w = canvas.getBoundingClientRect().width;
+        const h = canvas.getBoundingClientRect().height;
+
+        ctx.clearRect(0,0,w,h);
+
+        const tw = trackWidth(w);
+        const left = (w - tw) / 2;
+        const right = (w + tw) / 2;
+
+        const vign = ctx.createRadialGradient(w/2, h*0.35, 80, w/2, h*0.35, Math.max(w,h)*0.9);
+        vign.addColorStop(0, "rgba(255,255,255,0.06)");
+        vign.addColorStop(1, "rgba(0,0,0,0.35)");
+        ctx.fillStyle = vign;
+        ctx.fillRect(0,0,w,h);
+
+        ctx.fillStyle = "rgba(255,255,255,0.10)";
+        ctx.beginPath();
+        ctx.roundRect(left, 0, tw, h, 18);
+        ctx.fill();
+
+        ctx.strokeStyle = "rgba(255,255,255,0.14)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(left+1, 0);
+        ctx.lineTo(left+1, h);
+        ctx.moveTo(right-1, 0);
+        ctx.lineTo(right-1, h);
+        ctx.stroke();
+
+        ctx.strokeStyle = "rgba(255,255,255,0.08)";
+        ctx.lineWidth = 2;
+        for (let i=0;i<18;i++){
+          const x = left + 30 + (i/18)*(tw-60);
+          const offset = (scroll*0.7 + i*37) % 120;
+          ctx.beginPath();
+          ctx.moveTo(x, -40 + offset);
+          ctx.lineTo(x, 30 + offset);
+          ctx.stroke();
+        }
+
+        for (const g of gates) {
+          const half = g.w/2;
+          const y = g.y;
+
+          ctx.lineWidth = 5;
+          ctx.strokeStyle = "rgba(96,165,250,0.85)";
+          ctx.beginPath();
+          ctx.moveTo(g.x - half, y);
+          ctx.lineTo(g.x - half, y + 44);
+          ctx.moveTo(g.x + half, y);
+          ctx.lineTo(g.x + half, y + 44);
+          ctx.stroke();
+
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = "rgba(96,165,250,0.35)";
+          ctx.beginPath();
+          ctx.moveTo(g.x - half, y + 16);
+          ctx.lineTo(g.x + half, y + 16);
+          ctx.stroke();
+        }
+
+        for (const o of obstacles) {
+          if (o.type === "tree") {
+            ctx.fillStyle = "rgba(34,197,94,0.90)";
+            ctx.beginPath();
+            ctx.moveTo(o.x, o.y - o.r - 14);
+            ctx.lineTo(o.x - o.r - 6, o.y + o.r);
+            ctx.lineTo(o.x + o.r + 6, o.y + o.r);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = "rgba(16,185,129,0.85)";
+            ctx.beginPath();
+            ctx.moveTo(o.x, o.y - o.r);
+            ctx.lineTo(o.x - o.r, o.y + o.r + 4);
+            ctx.lineTo(o.x + o.r, o.y + o.r + 4);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.fillStyle = "rgba(120,53,15,0.85)";
+            ctx.fillRect(o.x - 4, o.y + o.r + 4, 8, 10);
+          } else {
+            ctx.fillStyle = "rgba(156,163,175,0.85)";
+            ctx.beginPath();
+            ctx.arc(o.x, o.y, o.r, 0, Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = "rgba(0,0,0,0.25)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+        }
+
+        ctx.save();
+        ctx.translate(skier.x, skier.y);
+        const lean = clamp(skier.vx / 900, -0.35, 0.35);
+        ctx.rotate(lean);
+
+        ctx.strokeStyle = "rgba(255,255,255,0.85)";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(-14, 18);
+        ctx.lineTo(-24, 42);
+        ctx.moveTo(14, 18);
+        ctx.lineTo(24, 42);
+        ctx.stroke();
+
+        ctx.fillStyle = "rgba(255,255,255,0.86)";
+        ctx.beginPath();
+        ctx.roundRect(-14, -14, 28, 30, 10);
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(17,24,39,0.85)";
+        ctx.beginPath();
+        ctx.roundRect(-12, 14, 24, 18, 9);
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(96,165,250,0.95)";
+        ctx.beginPath();
+        ctx.arc(0, -18, 10, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.beginPath();
+        ctx.roundRect(-9, -20, 18, 7, 6);
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      function loop(now) {
+        if (!running || paused) return;
+        const dt = Math.min(0.033, (now - tPrev) / 1000);
+        tPrev = now;
+        update(dt);
+        draw();
+        if (running) requestAnimationFrame(loop);
+      }
+
+      ui.status.textContent = "Ready";
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+body {
+font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+background: radial-gradient(circle at top, #1f3b57 0, #050814 55%, #02030a 100%);
+color: whitesmoke;
+}
+.page-layout{
+    display: flex; min-height: 100vh;
+}
+.sidebar{
+    font-size: 20px;
+    font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+    color: wheat;
+    position: fixed;
+    width: 230;
+    height: 100vh;
+    background: rgba (3, 11, 30 0.97);
+    border-right: 1px solid #24344f;
+    padding: 20px 16px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 4px 0 18px rgba(0, 0, 0, 0.6);
+}
+.sidebar img {
+       max-width: 200px;
+    height: auto;
+    border-radius: 8px;
+    margin-bottom: 18px;
+    border: 2px solid #304a70;
+}
+
+.sidebar a {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    margin: 4px 0;
+    text-decoration: none;
+    color: #b7d8ff;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    box-sizing: border-box;
+}
+
+.sidebar a:hover {
+    background: #173152;
+    border-color: #47c2ff;
+    color: #ffffff;
+}
+
+.main-content {
+    margin-left: 230px;
+    padding: 28px 24px 60px 24px;
+    max-width: 960px;
+    box-sizing: border-box;
+}
+.text {
+    text-decoration: underline;
+}

@@ -1,0 +1,147 @@
+/* ============================
+   Derek Budge Resume Styles
+   Calm, professional Bootstrap polish
+   ============================ */
+
+/* ===== Theme variables ===== */
+:root {
+  --ink: #111827;          /* main text */
+  --muted: #6b7280;        /* secondary text */
+  --surface: #ffffff;      /* cards */
+  --bg: #f6f8fb;           /* page background */
+  --tint: #eef3f9;         /* header tint */
+  --accent: #1f4e79;       /* calm navy */
+  --accent-soft: #e7f0fa;  /* soft accent background */
+  --border: #e5e7eb;       /* light border */
+}
+
+/* ===== Base typography & layout ===== */
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: var(--ink);
+  line-height: 1.55;
+  background-color: var(--bg);
+}
+
+/* Slightly sharpen headings */
+h1, h2, h3 {
+  letter-spacing: 0.2px;
+}
+
+/* ===== Section spacing ===== */
+.section-block {
+  margin-bottom: 3rem;
+}
+
+/* Prevent sticky nav from covering anchor headings */
+section[id] {
+  scroll-margin-top: 90px;
+}
+
+/* ===== Navbar polish ===== */
+.navbar {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+.navbar-brand {
+  letter-spacing: 0.25px;
+}
+
+.navbar .nav-link {
+  position: relative;
+}
+
+/* Subtle underline on hover (professional) */
+.navbar .nav-link:hover::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -6px;
+  width: 100%;
+  height: 2px;
+  background: rgba(31, 78, 121, 0.35);
+}
+
+/* ===== Header / Hero background tint ===== */
+header.bg-light {
+  background: linear-gradient(180deg, var(--tint) 0%, var(--bg) 100%);
+}
+
+/* ===== Profile photo (circle) ===== */
+.profile-photo {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0.75rem 1.25rem rgba(17, 24, 39, 0.14);
+  flex: 0 0 auto;
+}
+
+@media (max-width: 576px) {
+  .profile-photo {
+    width: 76px;
+    height: 76px;
+  }
+}
+
+/* ===== Cards ===== */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  box-shadow: 0 0.75rem 1.5rem rgba(17, 24, 39, 0.06);
+}
+
+/* Lists inside cards */
+.card ul {
+  padding-left: 1.1rem;
+  margin-bottom: 0;
+}
+
+/* “Highlights” label style */
+.card .h6.text-uppercase {
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+/* Muted text (Bootstrap uses .text-muted a lot) */
+.text-muted {
+  color: var(--muted) !important;
+}
+
+/* ===== Buttons: calm navy overrides ===== */
+.btn {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.5rem 1rem rgba(17, 24, 39, 0.08);
+}
+
+.btn-primary {
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.btn-primary:hover {
+  background-color: #163a59 !important;
+  border-color: #163a59 !important;
+}
+
+.btn-outline-primary {
+  color: var(--accent) !important;
+  border-color: rgba(31, 78, 121, 0.55) !important;
+}
+
+.btn-outline-primary:hover {
+  background-color: var(--accent-soft) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+/* Optional: slightly soften secondary outline button */
+.btn-outline-secondary {
+  border-color: rgba(107, 114, 128, 0.55) !important;
+}
